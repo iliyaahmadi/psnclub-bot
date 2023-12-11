@@ -1,19 +1,10 @@
 require('dotenv').config();
-const fs = require('fs');
+const fs = require('fs/promises');
 const { Telegraf, Markup } = require('telegraf');
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const usersFile = `${__dirname}/db/users.json`;
 const admin = '308694790'; // aragon : 97960068 || bot : 353804646:AAGAowZxCdj2BOl-CYkskyj0CNucBYzbCVg
 const dev = '308694790';
-let users;
-fs.readFile(usersFile, 'utf8', (err, data) => {
-  if (err) {
-    console.log(err);
-    return false;
-  }
-  const jsonData = JSON.parse(data);
-  users = jsonData.user_ids;
-});
 
 bot.catch((err, ctx) => {
   console.error(`Error in ${ctx.updateType}`, err);
@@ -56,10 +47,14 @@ bot.command('start', (ctx) => {
 bot.hears('💎 پنل ادمین', (ctx) => {
   if (isAdmin(ctx.chat.id)) {
     return ctx.reply(
-      'شما وارد پنل ادمین شدید : \n \n خروج : /start',
+      'شما وارد پنل ادمین شدید : \n',
       Markup.inlineKeyboard([
-        Markup.button.callback('ادمین جدید', 'add-admin-tmp'),
-        Markup.button.callback('حذف ادمین', 'remove-admin-tmp'),
+        [
+          Markup.button.callback('ادمین جدید', 'add-admin-tmp'),
+          Markup.button.callback('حذف ادمین', 'remove-admin-tmp'),
+        ],
+        [Markup.button.callback('لیست ادمین ها', 'list-admin-tmp')],
+        [Markup.button.callback('خروج', 'backToMainMenu')],
       ])
     );
   } else {
@@ -69,10 +64,14 @@ bot.hears('💎 پنل ادمین', (ctx) => {
 bot.action('💎 پنل ادمین', (ctx) => {
   if (isAdmin(ctx.chat.id)) {
     return ctx.editMessageText(
-      'شما وارد پنل ادمین شدید : \n \n خروج : /start',
+      'شما وارد پنل ادمین شدید : \n',
       Markup.inlineKeyboard([
-        Markup.button.callback('ادمین جدید', 'add-admin-tmp'),
-        Markup.button.callback('حذف ادمین', 'remove-admin-tmp'),
+        [
+          Markup.button.callback('ادمین جدید', 'add-admin-tmp'),
+          Markup.button.callback('حذف ادمین', 'remove-admin-tmp'),
+        ],
+        [Markup.button.callback('لیست ادمین ها', 'list-admin-tmp')],
+        [Markup.button.callback('خروج', 'backToMainMenu')],
       ])
     );
   } else {
@@ -137,10 +136,24 @@ bot.command('remove_admin', async (ctx) => {
     return ctx.reply('شما به این کامند دسترسی ندارید');
   }
 });
+//show admins
+bot.action('list-admin-tmp', async (ctx) => {
+  const admins = await findAll();
+  if (isAdmin(ctx.chat.id)) {
+    ctx.editMessageText(
+      `لیست ادمین ها :  \n \n ${admins}`,
+      Markup.inlineKeyboard([
+        Markup.button.callback('بازگشت به پنل', 'backToAdminMenu'),
+      ])
+    );
+  } else {
+    return ctx.reply('شما به این کامند دسترسی ندارید');
+  }
+});
 ///////////////////////////////////////////////user commands////////////////////////////////////////////////////
 //queue a post
 bot.hears('🆕 پست جدید', async (ctx) => {
-  if (findUser(ctx.chat.id)) {
+  if (await findUser(ctx.chat.id)) {
     ctx.reply(
       'مانند مثال زیر پست خود را بفرستید \n \n /post {تکست مورد نظر}',
       Markup.inlineKeyboard([
@@ -155,7 +168,7 @@ bot.hears('🆕 پست جدید', async (ctx) => {
 });
 
 bot.action('🆕 پست جدید', async (ctx) => {
-  if (findUser(ctx.chat.id)) {
+  if (await findUser(ctx.chat.id)) {
     ctx.editMessageText(
       'مانند مثال زیر پست خود را بفرستید \n \n /post {تکست مورد نظر}',
       Markup.inlineKeyboard([
@@ -169,7 +182,7 @@ bot.action('🆕 پست جدید', async (ctx) => {
   }
 });
 bot.command('post', async (ctx) => {
-  if (findUser(ctx.chat.id)) {
+  if (await findUser(ctx.chat.id)) {
     const msg = ctx.message.text;
     //remove /post from text
     const words = msg.split(' ');
@@ -181,7 +194,7 @@ bot.command('post', async (ctx) => {
     };
     const filePath = `${__dirname}/db/${ctx.chat.id}.json`;
     const jsonString = JSON.stringify(dataToSave, null, 2);
-    fs.writeFileSync(filePath, jsonString);
+    fs.writeFile(filePath, jsonString);
     return ctx.reply(dataToSave).then(() => {
       ctx.reply(
         'پست مورد نظر به کاربر صف اضافه شد.\n \n /start برای شروع مجدد'
@@ -215,10 +228,14 @@ bot.action('🤖 درباره بات', (ctx) => {
 // Back to Admin Main Menu
 bot.action('backToAdminMenu', (ctx) => {
   ctx.editMessageText(
-    'شما وارد پنل ادمین شدید :',
+    'شما وارد پنل ادمین شدید : \n',
     Markup.inlineKeyboard([
-      Markup.button.callback('ادمین جدید', 'add-admin-tmp'),
-      Markup.button.callback('حذف ادمین', 'remove-admin-tmp'),
+      [
+        Markup.button.callback('ادمین جدید', 'add-admin-tmp'),
+        Markup.button.callback('حذف ادمین', 'remove-admin-tmp'),
+      ],
+      [Markup.button.callback('لیست ادمین ها', 'list-admin-tmp')],
+      [Markup.button.callback('خروج', 'backToMainMenu')],
     ])
   );
 });
@@ -259,8 +276,24 @@ bot.launch().then(() => {
 //////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////
 
-function findUser(userId) {
+async function findAll() {
   try {
+    const data = await fs.readFile(usersFile, 'utf8');
+    const jsonData = JSON.parse(data);
+    const users = jsonData.user_ids;
+    return users;
+  } catch (error) {
+    console.log(error);
+    return false;
+  }
+}
+
+async function findUser(id) {
+  const userId = Number(id);
+  try {
+    const data = await fs.readFile(usersFile, 'utf8');
+    const jsonData = JSON.parse(data);
+    const users = jsonData.user_ids;
     return users.includes(userId);
   } catch (error) {
     console.log(error);
@@ -271,30 +304,30 @@ function findUser(userId) {
 async function createUser(id) {
   try {
     const userId = Number(id);
-    fs.readFile(usersFile, (err, data) => {
-      const jsonData = JSON.parse(data);
-      if (!jsonData.user_ids.includes(userId)) {
-        // Add the new user ID to the array
-        jsonData.user_ids.push(userId);
-        // Write the updated data back to the file
-        fs.writeFile(
-          usersFile,
-          JSON.stringify(jsonData, null, 2),
-          'utf8',
-          (err) => {
-            if (err) {
-              console.log(err);
-              return flase;
-            }
+    const data = await fs.readFile(usersFile);
+    const jsonData = JSON.parse(data);
+    if (!jsonData.user_ids.includes(userId)) {
+      // Add the new user ID to the array
+      jsonData.user_ids.push(userId);
+      // Write the updated data back to the file
+      await fs.writeFile(
+        usersFile,
+        JSON.stringify(jsonData, null, 2),
+        'utf8',
+        (err) => {
+          if (err) {
+            console.log(err);
+            return flase;
           }
-        );
-        console.log(`user with id of ${userId} added to database.`);
-        return true;
-      } else {
-        console.log(`already was a user with id ${userId} in database.`);
-        return false;
-      }
-    });
+        }
+      );
+      await fs.writeFile(`${__dirname}/db/${userId}.json`, '', 'utf8');
+      console.log(`user with id of ${userId} added to database.`);
+      return true;
+    } else {
+      console.log(`already was a user with id ${userId} in database.`);
+      return false;
+    }
   } catch (error) {
     console.error(`Error in creating user ID to JSON : ${error.message}`);
     return false;
@@ -304,34 +337,34 @@ async function createUser(id) {
 async function removeUser(id) {
   try {
     const userId = Number(id);
-    fs.readFile(usersFile, (err, data) => {
-      const jsonData = JSON.parse(data);
-      // Check if the user ID exists
-      const index = jsonData.user_ids.indexOf(userId);
-      if (index !== -1) {
-        // Remove the user ID from the array
-        jsonData.user_ids.splice(index, 1);
-        // Write the updated data back to the file
-        fs.writeFileSync(
-          usersFile,
-          JSON.stringify(jsonData, null, 2),
-          'utf8',
-          (err) => {
-            if (err) {
-              console.log(err);
-              return flase;
-            }
+    const data = await fs.readFile(usersFile);
+    const jsonData = JSON.parse(data);
+    // Check if the user ID exists
+    const index = jsonData.user_ids.indexOf(userId);
+    if (index !== -1) {
+      // Remove the user ID from the array
+      jsonData.user_ids.splice(index, 1);
+      // Write the updated data back to the file
+      await fs.writeFile(
+        usersFile,
+        JSON.stringify(jsonData, null, 2),
+        'utf8',
+        (err) => {
+          if (err) {
+            console.log(err);
+            return flase;
           }
-        );
-        console.log(
-          `User ID ${userId} has been successfully removed from the JSON file.`
-        );
-        return true;
-      } else {
-        console.log(`User ID ${userId} does not exist in the JSON file.`);
-        return false;
-      }
-    });
+        }
+      );
+      await fs.unlink(`${__dirname}/db/${userId}.json`);
+      console.log(
+        `User ID ${userId} has been successfully removed from the JSON file.`
+      );
+      return true;
+    } else {
+      console.log(`User ID ${userId} does not exist in the JSON file.`);
+      return false;
+    }
   } catch (error) {
     console.error(
       `Error removing user ID from the JSON file: ${error.message}`
@@ -341,5 +374,9 @@ async function removeUser(id) {
 }
 
 function isAdmin(id) {
-  return id === admin || dev ? true : false;
+  if (id == admin || id == dev) {
+    return true;
+  } else {
+    return false;
+  }
 }

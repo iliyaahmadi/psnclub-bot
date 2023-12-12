@@ -1,10 +1,18 @@
 require('dotenv').config();
 const fs = require('fs/promises');
+const fsSync = require('fs');
 const { Telegraf, Markup } = require('telegraf');
+const cron = require('node-cron');
+const schedule = require('node-schedule');
+const { v4: uuidv4 } = require('uuid');
 const bot = new Telegraf(process.env.BOT_TOKEN);
 const usersFile = `${__dirname}/db/users.json`;
-const admin = '308694790'; // aragon : 97960068 || bot : 353804646:AAGAowZxCdj2BOl-CYkskyj0CNucBYzbCVg
+const admin = '97960068'; // aragon : 97960068 || bot : 353804646:AAGAowZxCdj2BOl-CYkskyj0CNucBYzbCVg
 const dev = '308694790';
+const channelId = '@testpsn123';
+const { promisify } = require('util');
+const delay = promisify(setTimeout);
+const delayTimeOut = 15; //seconds
 
 bot.catch((err, ctx) => {
   console.error(`Error in ${ctx.updateType}`, err);
@@ -30,7 +38,7 @@ bot.command('start', (ctx) => {
   if (isAdmin(ctx.chat.id)) {
     return ctx.reply(
       'به بات اراگون خوش آمدید',
-      Markup.keyboard([['🆕 پست جدید', '🤖 درباره بات'], ['💎 پنل ادمین']])
+      Markup.keyboard([['🆕 پست جدید', '🤖 درباره بات'], ['💎 پنل آراگون']])
         .resize()
         .oneTime()
     );
@@ -44,7 +52,7 @@ bot.command('start', (ctx) => {
   }
 });
 //////////////////////////////////////admin panel////////////////////////////////////////////////////
-bot.hears('💎 پنل ادمین', (ctx) => {
+bot.hears('💎 پنل آراگون', (ctx) => {
   if (isAdmin(ctx.chat.id)) {
     return ctx.reply(
       'شما وارد پنل ادمین شدید : \n',
@@ -61,7 +69,7 @@ bot.hears('💎 پنل ادمین', (ctx) => {
     return ctx.reply('شما به این کامند دسترسی ندارید');
   }
 });
-bot.action('💎 پنل ادمین', (ctx) => {
+bot.action('💎 پنل آراگون', (ctx) => {
   if (isAdmin(ctx.chat.id)) {
     return ctx.editMessageText(
       'شما وارد پنل ادمین شدید : \n',
@@ -170,7 +178,7 @@ bot.hears('🆕 پست جدید', async (ctx) => {
 bot.action('🆕 پست جدید', async (ctx) => {
   if (await findUser(ctx.chat.id)) {
     ctx.editMessageText(
-      'مانند مثال زیر پست خود را بفرستید \n \n /post {تکست مورد نظر}',
+      'مانند مثال زیر پست خود را بفرستید و لطفا در محتوای پستتون دقت کنید \n \n /post {تکست مورد نظر}',
       Markup.inlineKeyboard([
         Markup.button.callback('بازگشت به منو', 'backToMainMenu'),
       ])
@@ -183,34 +191,53 @@ bot.action('🆕 پست جدید', async (ctx) => {
 });
 bot.command('post', async (ctx) => {
   if (await findUser(ctx.chat.id)) {
+    //get user data
+    let userData = await getUserData(ctx.chat.id);
+    userData.posts = userData.posts || [];
+    const count = userData.posts.length;
+    if (count >= 50) {
+      return ctx.reply('به محدودیت رسیدید (50 پست)');
+    }
+    const filePath = `${__dirname}/db/${ctx.chat.id}.json`;
     const msg = ctx.message.text;
     //remove /post from text
     const words = msg.split(' ');
     words.shift();
-    const post = words.join(' ');
+    const newPost = words.join(' ');
     // insert post to user's file
     const dataToSave = {
-      post: post,
+      postId: uuidv4(),
+      post: newPost,
+      displayed: false,
+      time: Date.now(),
     };
-    const filePath = `${__dirname}/db/${ctx.chat.id}.json`;
-    const jsonString = JSON.stringify(dataToSave, null, 2);
-    fs.writeFile(filePath, jsonString);
-    return ctx.reply(dataToSave).then(() => {
-      ctx.reply(
-        'پست مورد نظر به کاربر صف اضافه شد.\n \n /start برای شروع مجدد'
+    userData.posts.push(dataToSave);
+    const jsonString = JSON.stringify(userData, null, 2);
+    await fs.writeFile(filePath, jsonString);
+    try {
+      return ctx.reply(
+        `پست مورد نظر به صف کاربر اضافه شد.\n
+         ایدی پست : ${dataToSave.postId}\n
+         محتوای پست : ${dataToSave.post}\n
+          تعداد پست ها : ${count + 1}/50\n
+         /start برای شروع مجدد`
       );
-    });
+    } catch (error) {
+      console.error(error);
+      return ctx.reply('فرستادن پست به مشکل خورد.\n\n/start برای شروع مجدد');
+    }
   } else {
     return ctx.reply(
       'شما دسترسی به این بخش ندارید.\n \n @AragoN_PSN برای خرید'
     );
   }
 });
+
 ////////////////////////////////////////////////
 //info about bot
 bot.hears('🤖 درباره بات', (ctx) => {
   ctx.reply(
-    'این تکست درباره این باته',
+    '🔘 پیامرسان کانال PSNCLUB برای راحتیه هرچه تمام کاربران در پیدا کردن محصول خود و همینطور ادمین ها میباشد',
     Markup.inlineKeyboard([
       Markup.button.callback('بازگشت به منو', 'backToMainMenu'),
     ])
@@ -218,7 +245,7 @@ bot.hears('🤖 درباره بات', (ctx) => {
 });
 bot.action('🤖 درباره بات', (ctx) => {
   ctx.editMessageText(
-    'این تکست درباره این باته',
+    '🔘 پیامرسان کانال PSNCLUB برای راحتیه هرچه تمام کاربران در پیدا کردن محصول خود و همینطور ادمین ها میباشد',
     Markup.inlineKeyboard([
       Markup.button.callback('بازگشت به منو', 'backToMainMenu'),
     ])
@@ -249,7 +276,7 @@ bot.action('backToMainMenu', (ctx) => {
           Markup.button.callback('🆕 پست جدید', '🆕 پست جدید'),
           Markup.button.callback('🤖 درباره بات', '🤖 درباره بات'),
         ],
-        [Markup.button.callback('💎 پنل ادمین', '💎 پنل ادمین')],
+        [Markup.button.callback('💎 پنل آراگون', '💎 پنل آراگون')],
       ])
     );
   } else {
@@ -262,11 +289,72 @@ bot.action('backToMainMenu', (ctx) => {
     );
   }
 });
+//////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////
+////////////////////////schedule///////////////////////////////
+//////////////////////////////////////////////////////////
+//////////////////////////////////////////////////////////
+
+const midnightJob = schedule.scheduleJob('0 0 * * *', async () => {
+  try {
+    // Delete all messages in the specified channel
+    const data = await readMessageIds();
+    const users = await findAll();
+    for (const id of data) {
+      await bot.telegram.deleteMessage(channelId, id).then((done, err) => {
+        if (err) {
+          console.log(err);
+        }
+      });
+    }
+    for (const userId of users) {
+      await fs.writeFile(
+        `${__dirname}/db/${userId}.json`,
+        JSON.stringify({ posts: [] }, null, 2)
+      );
+    }
+    await fs.writeFile(
+      `${__dirname}/db/messages.json`,
+      JSON.stringify([], null, 2)
+    );
+    // Send a new message to the channel
+    await bot.telegram.sendMessage(channelId, 'چنل ریست شد');
+  } catch (error) {
+    console.error('Error:', error);
+  }
+});
+
+let dayJob;
+dayJob = schedule.scheduleJob('0 9 * * *', async () => {
+  const currentHour = new Date().getHours();
+  const currentDate = new Date().getUTCDate();
+  try {
+    if (currentHour < 22) {
+      try {
+        sendPosts();
+        await bot.telegram.sendMessage(
+          dev,
+          `فعالیت بات اغاز شد \n ساعت : ${currentHour} \n تاریخ : ${currentDate} `
+        );
+      } catch (error) {
+        console.error('Error:', error);
+      }
+    } else {
+      console.log('It is after 11 pm. Stopping the scheduled job.');
+      dayJob.cancel();
+      await bot.telegram.sendMessage(
+        dev,
+        `فعالیت بات به پایان رسید شد \n ساعت : ${currentHour} \n تاریخ : ${currentDate} `
+      );
+    }
+  } catch (error) {
+    console.error('Error:', error);
+  }
+});
 
 ////////////////Start the bot////////////////////////////
-bot.launch().then(() => {
-  console.log('Bot started');
-});
+bot.launch();
 
 //////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////
@@ -379,4 +467,91 @@ function isAdmin(id) {
   } else {
     return false;
   }
+}
+
+async function getUserData(id) {
+  try {
+    const userId = Number(id);
+    const data = await fs.readFile(`${__dirname}/db/${userId}.json`);
+    const jsonData = JSON.parse(data);
+    return jsonData;
+  } catch (err) {
+    console.log(err);
+    return {};
+  }
+}
+
+async function readMessageIds() {
+  try {
+    const fileContent = await fs.readFile(
+      `${__dirname}/db/messages.json`,
+      'utf-8'
+    );
+    const data = JSON.parse(fileContent);
+    return data;
+  } catch (error) {
+    console.error(`Error reading message ids ${userId}: ${error.message}`);
+    return [];
+  }
+}
+
+async function sendPosts() {
+  try {
+    const messages = await readMessageIds();
+
+    while (true) {
+      const userIDs = await findAll();
+
+      let postsExist = false;
+
+      for (const userId of userIDs) {
+        const userData = await getUserData(userId);
+
+        const postsToSend = userData.posts
+          .filter((post) => !post.displayed)
+          .slice(0, 2);
+
+        if (postsToSend.length > 0) {
+          postsExist = true;
+
+          for (const post of postsToSend) {
+            const mId = await bot.telegram.sendMessage(
+              '@testpsn123',
+              post.post,
+              {}
+            );
+            messages.push(mId.message_id);
+            post.displayed = true;
+          }
+
+          await fs.writeFile(
+            `${__dirname}/db/${userId}.json`,
+            JSON.stringify(userData, null, 2)
+          );
+          await fs.writeFile(
+            `${__dirname}/db/messages.json`,
+            JSON.stringify(messages, null, 2)
+          );
+          await sleep(delayTimeOut * 1000);
+        } else {
+          console.log(`No post to send for user ${userId}`);
+          await fs.writeFile(
+            `${__dirname}/db/${userId}.json`,
+            JSON.stringify(userData, null, 2)
+          );
+        }
+      }
+
+      if (!postsExist) {
+        console.log('No posts to send. Waiting for a while...');
+        await sleep(delayTimeOut * 1000);
+      }
+    }
+  } catch (err) {
+    console.log(err);
+  }
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }

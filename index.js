@@ -7,7 +7,7 @@ const bot = new Telegraf(process.env.BOT_TOKEN);
 const usersFile = `${__dirname}/db/users.json`;
 const admin = '97960068'; // aragon : 97960068 || bot : 353804646:AAGAowZxCdj2BOl-CYkskyj0CNucBYzbCVg
 const dev = '308694790';
-const channelId = '@testpsn123';
+const channelId = '-1001064024522';
 const delayTimeOut = 5 * 60; //seconds
 const photo_morning = `${__dirname}/morning.jpg`;
 const photo_night = `${__dirname}/night.jpg`;
@@ -19,6 +19,10 @@ bot.catch((err, ctx) => {
   //   admin,
   //   `کاربری با آیدی ${ctx.chat.id} به مشکل خورد \n \n Error in ${ctx.updateType}: ${err.message}`
   // );
+  bot.telegram.sendMessage(
+    admin,
+    `کاربری با آیدی ${ctx.chat.id} به مشکل خورد \n \n Error in ${ctx.updateType}: ${err.message}`
+  );
   bot.telegram.sendMessage(
     dev,
     `کاربری با آیدی ${ctx.chat.id} به مشکل خورد \n \n Error in ${ctx.updateType}: ${err.message}`
@@ -295,8 +299,8 @@ bot.action('backToMainMenu', (ctx) => {
 ////////////////////////schedule///////////////////////////////
 //////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////
-
-const midnightJob = schedule.scheduleJob('0 0 * * *', async () => {
+// '0 0 * * *'
+const midnightJob = schedule.scheduleJob('0 1 * * *', async () => {
   try {
     // Delete all messages in the specified channel
     const data = await readMessageIds();
@@ -325,16 +329,15 @@ const midnightJob = schedule.scheduleJob('0 0 * * *', async () => {
       {
         caption: `پایان فعالیت امشب ، اکانت های جدید فردا صبح...
 
-    🔹شعبه دوم : 
-    PSNCLUB II (https://t.me/+XD9P4Jajmto4OWQ0)
-    🔸گپ چنل : 
-    Republic of Gamers (https://t.me/+Qc7ejxEZeNOYlVT7)
-    🔻پشتیبانی و مدیریت : 
-    @AragoN_PSN 
-    
-    
-    
-    شب خوشی را برای شما آرزومندیم 🌹`,
+🔹شعبه دوم : 
+PSNCLUB II (https://t.me/+XD9P4Jajmto4OWQ0)
+🔸گپ چنل : 
+Republic of Gamers (https://t.me/+Qc7ejxEZeNOYlVT7)
+🔻پشتیبانی و مدیریت : 
+@AragoN_PSN 
+
+
+شب خوشی را برای شما آرزومندیم 🌹`,
       }
     );
   } catch (error) {
@@ -343,46 +346,32 @@ const midnightJob = schedule.scheduleJob('0 0 * * *', async () => {
 });
 
 let dayJob;
+// dayJob = schedule.scheduleJob('0 9 * * *', async () => {
 dayJob = schedule.scheduleJob('0 9 * * *', async () => {
-  const currentHour = new Date().getHours();
   const currentDate = new Date().toLocaleDateString();
   try {
-    if (currentHour > 0) {
-      try {
-        sendPosts();
-        await bot.telegram.sendMessage(
-          admin,
-          `فعالیت بات اغاز شد \n تاریخ : ${currentDate} `
-        );
-        await bot.telegram.sendPhoto(
-          channelId,
-          { source: photo_morning },
-          {
-            caption: `شروع فعالیت امروز ، اکانت های جدید درحال آماده سازی...
+    await bot.telegram.sendPhoto(
+      channelId,
+      { source: photo_morning },
+      {
+        caption: `شروع فعالیت امروز ، اکانت های جدید درحال آماده سازی...
 
-            🔹شعبه دوم : 
-            PSNCLUB II (https://t.me/+XD9P4Jajmto4OWQ0)
-            🔸گپ چنل : 
-            Republic of Gamers (https://t.me/+Qc7ejxEZeNOYlVT7)
-            🔻پشتیبانی و مدیریت : 
-            @AragoN_PSN 
-            
-            
-            
-            روز خوبی را برای شما آرزومندیم 🌹`,
-          }
-        );
-      } catch (error) {
-        console.error('Error:', error);
+🔹شعبه دوم : 
+PSNCLUB II (https://t.me/+XD9P4Jajmto4OWQ0)
+🔸گپ چنل : 
+Republic of Gamers (https://t.me/+Qc7ejxEZeNOYlVT7)
+🔻پشتیبانی و مدیریت : 
+@AragoN_PSN 
+
+
+روز خوبی را برای شما آرزومندیم 🌹`,
       }
-    } else {
-      console.log('It is after 00:00 am. Stopping the scheduled job.');
-      dayJob.cancel();
-      await bot.telegram.sendMessage(
-        admin,
-        `فعالیت بات به پایان رسید شد \n \n تاریخ : ${currentDate} `
-      );
-    }
+    );
+    sendPosts();
+    await bot.telegram.sendMessage(
+      dev,
+      `فعالیت بات اغاز شد \n تاریخ : ${currentDate} `
+    );
   } catch (error) {
     console.error('Error:', error);
   }
@@ -532,55 +521,63 @@ async function readMessageIds() {
 
 async function sendPosts() {
   try {
-    const messages = await readMessageIds();
+    const currentHour = new Date().getHours();
+    if (currentHour > 0) {
+      const messages = await readMessageIds();
 
-    while (true) {
-      const userIDs = await findAll();
+      while (true) {
+        const userIDs = await findAll();
 
-      let postsExist = false;
+        let postsExist = false;
 
-      for (const userId of userIDs) {
-        const userData = await getUserData(userId);
+        for (const userId of userIDs) {
+          const userData = await getUserData(userId);
 
-        const postsToSend = userData.posts
-          .filter((post) => !post.displayed)
-          .slice(0, 2);
+          const postsToSend = userData.posts
+            .filter((post) => !post.displayed)
+            .slice(0, 5);
 
-        if (postsToSend.length > 0) {
-          postsExist = true;
-
-          for (const post of postsToSend) {
-            const mId = await bot.telegram.sendMessage(
-              '@testpsn123',
-              post.post,
-              {}
+          if (postsToSend.length > 0) {
+            postsExist = true;
+            for (const post of postsToSend) {
+              const mId = await bot.telegram.sendMessage(
+                channelId,
+                post.post,
+                {}
+              );
+              messages.push(mId.message_id);
+              post.displayed = true;
+            }
+            await fs.writeFile(
+              `${__dirname}/db/${userId}.json`,
+              JSON.stringify(userData, null, 2)
             );
-            messages.push(mId.message_id);
-            post.displayed = true;
+            await fs.writeFile(
+              `${__dirname}/db/messages.json`,
+              JSON.stringify(messages, null, 2)
+            );
+            await sleep(delayTimeOut * 1000);
+          } else {
+            console.log(`No post to send for user ${userId}`);
+            await fs.writeFile(
+              `${__dirname}/db/${userId}.json`,
+              JSON.stringify(userData, null, 2)
+            );
           }
-
-          await fs.writeFile(
-            `${__dirname}/db/${userId}.json`,
-            JSON.stringify(userData, null, 2)
-          );
-          await fs.writeFile(
-            `${__dirname}/db/messages.json`,
-            JSON.stringify(messages, null, 2)
-          );
+        }
+        if (!postsExist) {
+          console.log('No posts to send. Waiting for a while...');
           await sleep(delayTimeOut * 1000);
-        } else {
-          console.log(`No post to send for user ${userId}`);
-          await fs.writeFile(
-            `${__dirname}/db/${userId}.json`,
-            JSON.stringify(userData, null, 2)
-          );
         }
       }
-
-      if (!postsExist) {
-        console.log('No posts to send. Waiting for a while...');
-        await sleep(delayTimeOut * 1000);
-      }
+    } else {
+      const currentDate = new Date().toLocaleDateString();
+      console.log('It is after 00:00 am. Stopping the scheduled job.');
+      dayJob.cancel();
+      await bot.telegram.sendMessage(
+        dev,
+        `فعالیت بات به پایان رسید شد \n \n تاریخ : ${currentDate} `
+      );
     }
   } catch (err) {
     console.log(err);

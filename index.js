@@ -1,8 +1,6 @@
 require('dotenv').config();
 const fs = require('fs/promises');
-const fsSync = require('fs');
 const { Telegraf, Markup } = require('telegraf');
-const cron = require('node-cron');
 const schedule = require('node-schedule');
 const { v4: uuidv4 } = require('uuid');
 const bot = new Telegraf(process.env.BOT_TOKEN);
@@ -10,9 +8,9 @@ const usersFile = `${__dirname}/db/users.json`;
 const admin = '97960068'; // aragon : 97960068 || bot : 353804646:AAGAowZxCdj2BOl-CYkskyj0CNucBYzbCVg
 const dev = '308694790';
 const channelId = '@testpsn123';
-const { promisify } = require('util');
-const delay = promisify(setTimeout);
-const delayTimeOut = 15; //seconds
+const delayTimeOut = 5 * 60; //seconds
+const photo_morning = `${__dirname}/morning.jpg`;
+const photo_night = `${__dirname}/night.jpg`;
 
 bot.catch((err, ctx) => {
   console.error(`Error in ${ctx.updateType}`, err);
@@ -38,21 +36,23 @@ bot.command('start', (ctx) => {
   if (isAdmin(ctx.chat.id)) {
     return ctx.reply(
       'به بات اراگون خوش آمدید',
-      Markup.keyboard([['🆕 پست جدید', '🤖 درباره بات'], ['💎 پنل آراگون']])
+      // Markup.keyboard([['🆕 NEW POST', '🤖 درباره بات'], ['💎 Owner Panel']])
+      Markup.keyboard([['🆕 NEW POST'], ['💎 Owner Panel']])
         .resize()
         .oneTime()
     );
   } else {
     return ctx.reply(
       'به بات اراگون خوش آمدید',
-      Markup.keyboard([['🆕 پست جدید', '🤖 درباره بات']])
+      // Markup.keyboard([['🆕 NEW POST', '🤖 درباره بات']])
+      Markup.keyboard([['🆕 NEW POST']])
         .resize()
         .oneTime()
     );
   }
 });
 //////////////////////////////////////admin panel////////////////////////////////////////////////////
-bot.hears('💎 پنل آراگون', (ctx) => {
+bot.hears('💎 Owner Panel', (ctx) => {
   if (isAdmin(ctx.chat.id)) {
     return ctx.reply(
       'شما وارد پنل ادمین شدید : \n',
@@ -69,7 +69,7 @@ bot.hears('💎 پنل آراگون', (ctx) => {
     return ctx.reply('شما به این کامند دسترسی ندارید');
   }
 });
-bot.action('💎 پنل آراگون', (ctx) => {
+bot.action('💎 Owner Panel', (ctx) => {
   if (isAdmin(ctx.chat.id)) {
     return ctx.editMessageText(
       'شما وارد پنل ادمین شدید : \n',
@@ -160,7 +160,7 @@ bot.action('list-admin-tmp', async (ctx) => {
 });
 ///////////////////////////////////////////////user commands////////////////////////////////////////////////////
 //queue a post
-bot.hears('🆕 پست جدید', async (ctx) => {
+bot.hears('🆕 NEW POST', async (ctx) => {
   if (await findUser(ctx.chat.id)) {
     ctx.reply(
       'مانند مثال زیر پست خود را بفرستید \n \n /post {تکست مورد نظر}',
@@ -175,7 +175,7 @@ bot.hears('🆕 پست جدید', async (ctx) => {
   }
 });
 
-bot.action('🆕 پست جدید', async (ctx) => {
+bot.action('🆕 NEW POST', async (ctx) => {
   if (await findUser(ctx.chat.id)) {
     ctx.editMessageText(
       'مانند مثال زیر پست خود را بفرستید و لطفا در محتوای پستتون دقت کنید \n \n /post {تکست مورد نظر}',
@@ -235,22 +235,22 @@ bot.command('post', async (ctx) => {
 
 ////////////////////////////////////////////////
 //info about bot
-bot.hears('🤖 درباره بات', (ctx) => {
-  ctx.reply(
-    '🔘 پیامرسان کانال PSNCLUB برای راحتیه هرچه تمام کاربران در پیدا کردن محصول خود و همینطور ادمین ها میباشد',
-    Markup.inlineKeyboard([
-      Markup.button.callback('بازگشت به منو', 'backToMainMenu'),
-    ])
-  );
-});
-bot.action('🤖 درباره بات', (ctx) => {
-  ctx.editMessageText(
-    '🔘 پیامرسان کانال PSNCLUB برای راحتیه هرچه تمام کاربران در پیدا کردن محصول خود و همینطور ادمین ها میباشد',
-    Markup.inlineKeyboard([
-      Markup.button.callback('بازگشت به منو', 'backToMainMenu'),
-    ])
-  );
-});
+// bot.hears('🤖 درباره بات', (ctx) => {
+//   ctx.reply(
+//     '🔘 پیامرسان کانال PSNCLUB برای راحتیه هرچه تمام کاربران در پیدا کردن محصول خود و همینطور ادمین ها میباشد',
+//     Markup.inlineKeyboard([
+//       Markup.button.callback('بازگشت به منو', 'backToMainMenu'),
+//     ])
+//   );
+// });
+// bot.action('🤖 درباره بات', (ctx) => {
+//   ctx.editMessageText(
+//     '🔘 پیامرسان کانال PSNCLUB برای راحتیه هرچه تمام کاربران در پیدا کردن محصول خود و همینطور ادمین ها میباشد',
+//     Markup.inlineKeyboard([
+//       Markup.button.callback('بازگشت به منو', 'backToMainMenu'),
+//     ])
+//   );
+// });
 /////////////////////////////////////////////////////////////////////////////////////////////////
 // Back to Admin Main Menu
 bot.action('backToAdminMenu', (ctx) => {
@@ -273,18 +273,18 @@ bot.action('backToMainMenu', (ctx) => {
       'به منوی اصلی بازگشتید',
       Markup.inlineKeyboard([
         [
-          Markup.button.callback('🆕 پست جدید', '🆕 پست جدید'),
-          Markup.button.callback('🤖 درباره بات', '🤖 درباره بات'),
+          Markup.button.callback('🆕 NEW POST', '🆕 NEW POST'),
+          // Markup.button.callback('🤖 درباره بات', '🤖 درباره بات'),
         ],
-        [Markup.button.callback('💎 پنل آراگون', '💎 پنل آراگون')],
+        [Markup.button.callback('💎 Owner Panel', '💎 Owner Panel')],
       ])
     );
   } else {
     return ctx.editMessageText(
       'به منوی اصلی بازگشتید',
       Markup.inlineKeyboard([
-        Markup.button.callback('🆕 پست جدید', '🆕 پست جدید'),
-        Markup.button.callback('🤖 درباره بات', '🤖 درباره بات'),
+        Markup.button.callback('🆕 NEW POST', '🆕 NEW POST'),
+        // Markup.button.callback('🤖 درباره بات', '🤖 درباره بات'),
       ])
     );
   }
@@ -319,7 +319,24 @@ const midnightJob = schedule.scheduleJob('0 0 * * *', async () => {
       JSON.stringify([], null, 2)
     );
     // Send a new message to the channel
-    await bot.telegram.sendMessage(channelId, 'چنل ریست شد');
+    await bot.telegram.sendPhoto(
+      channelId,
+      { source: photo_night },
+      {
+        caption: `پایان فعالیت امشب ، اکانت های جدید فردا صبح...
+
+    🔹شعبه دوم : 
+    PSNCLUB II (https://t.me/+XD9P4Jajmto4OWQ0)
+    🔸گپ چنل : 
+    Republic of Gamers (https://t.me/+Qc7ejxEZeNOYlVT7)
+    🔻پشتیبانی و مدیریت : 
+    @AragoN_PSN 
+    
+    
+    
+    شب خوشی را برای شما آرزومندیم 🌹`,
+      }
+    );
   } catch (error) {
     console.error('Error:', error);
   }
@@ -328,24 +345,42 @@ const midnightJob = schedule.scheduleJob('0 0 * * *', async () => {
 let dayJob;
 dayJob = schedule.scheduleJob('0 9 * * *', async () => {
   const currentHour = new Date().getHours();
-  const currentDate = new Date().getUTCDate();
+  const currentDate = new Date().toLocaleDateString();
   try {
-    if (currentHour < 22) {
+    if (currentHour > 0) {
       try {
         sendPosts();
         await bot.telegram.sendMessage(
-          dev,
-          `فعالیت بات اغاز شد \n ساعت : ${currentHour} \n تاریخ : ${currentDate} `
+          admin,
+          `فعالیت بات اغاز شد \n تاریخ : ${currentDate} `
+        );
+        await bot.telegram.sendPhoto(
+          channelId,
+          { source: photo_morning },
+          {
+            caption: `شروع فعالیت امروز ، اکانت های جدید درحال آماده سازی...
+
+            🔹شعبه دوم : 
+            PSNCLUB II (https://t.me/+XD9P4Jajmto4OWQ0)
+            🔸گپ چنل : 
+            Republic of Gamers (https://t.me/+Qc7ejxEZeNOYlVT7)
+            🔻پشتیبانی و مدیریت : 
+            @AragoN_PSN 
+            
+            
+            
+            روز خوبی را برای شما آرزومندیم 🌹`,
+          }
         );
       } catch (error) {
         console.error('Error:', error);
       }
     } else {
-      console.log('It is after 11 pm. Stopping the scheduled job.');
+      console.log('It is after 00:00 am. Stopping the scheduled job.');
       dayJob.cancel();
       await bot.telegram.sendMessage(
-        dev,
-        `فعالیت بات به پایان رسید شد \n ساعت : ${currentHour} \n تاریخ : ${currentDate} `
+        admin,
+        `فعالیت بات به پایان رسید شد \n \n تاریخ : ${currentDate} `
       );
     }
   } catch (error) {

@@ -107,7 +107,7 @@ bot.command('add_admin', async (ctx) => {
   if (isAdmin(ctx.chat.id)) {
     const msg = ctx.message.text.split(' ');
     const id = msg[1];
-    const regex = /^\d{9}$/;
+    const regex = /^\d{0,12}$/;
     if (regex.test(id)) {
       await createUser(id).then(() => {
         return ctx.reply(`ادمین جدید با ایدی ${id} اضافه شد`);
@@ -219,13 +219,12 @@ bot.command('post', async (ctx) => {
     const jsonString = JSON.stringify(userData, null, 2);
     await fs.writeFile(filePath, jsonString);
     try {
-      return ctx.reply(
-        `پست مورد نظر به صف کاربر اضافه شد.\n
-         ایدی پست : ${dataToSave.postId}\n
-         محتوای پست : ${dataToSave.post}\n
-          تعداد پست ها : ${count + 1}/50\n
-         /start برای شروع مجدد`
-      );
+      console.log('post user ezafe shd');
+      return ctx.reply(`پست مورد نظر به صف کاربر اضافه شد.\n
+ایدی پست : ${dataToSave.postId}\n
+محتوای پست : ${dataToSave.post}\n
+تعداد پست ها : ${count + 1}/50\n
+/start برای شروع مجدد`);
     } catch (error) {
       console.error(error);
       return ctx.reply('فرستادن پست به مشکل خورد.\n\n/start برای شروع مجدد');
@@ -299,18 +298,23 @@ bot.action('backToMainMenu', (ctx) => {
 ////////////////////////schedule///////////////////////////////
 //////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////
-// '0 0 * * *'
-const midnightJob = schedule.scheduleJob('0 1 * * *', async () => {
+
+// const midnightJob = schedule.scheduleJob('30 22 * * *', async () => {
+const midnightJob = schedule.scheduleJob('30 22 * * *', async () => {
   try {
     // Delete all messages in the specified channel
     const data = await readMessageIds();
     const users = await findAll();
     for (const id of data) {
-      await bot.telegram.deleteMessage(channelId, id).then((done, err) => {
-        if (err) {
-          console.log(err);
-        }
-      });
+      try {
+        await bot.telegram.deleteMessage(channelId, id).then((done, err) => {
+          if (err) {
+            console.log(err);
+          }
+        });
+      } catch (err) {
+        console.log(err);
+      }
     }
     for (const userId of users) {
       await fs.writeFile(
@@ -346,8 +350,8 @@ Republic of Gamers (https://t.me/+Qc7ejxEZeNOYlVT7)
 });
 
 let dayJob;
-// dayJob = schedule.scheduleJob('0 9 * * *', async () => {
-dayJob = schedule.scheduleJob('0 9 * * *', async () => {
+// dayJob = schedule.scheduleJob('30 6 * * *', async () => {
+dayJob = schedule.scheduleJob('30 6 * * *', async () => {
   const currentDate = new Date().toLocaleDateString();
   try {
     await bot.telegram.sendPhoto(
@@ -368,6 +372,10 @@ Republic of Gamers (https://t.me/+Qc7ejxEZeNOYlVT7)
       }
     );
     sendPosts();
+    await bot.telegram.sendMessage(
+      admin,
+      `فعالیت بات اغاز شد \n تاریخ : ${currentDate} `
+    );
     await bot.telegram.sendMessage(
       dev,
       `فعالیت بات اغاز شد \n تاریخ : ${currentDate} `
@@ -496,8 +504,16 @@ function isAdmin(id) {
 async function getUserData(id) {
   try {
     const userId = Number(id);
-    const data = await fs.readFile(`${__dirname}/db/${userId}.json`);
-    const jsonData = JSON.parse(data);
+
+    const dataBuffer = await fs.readFile(`${__dirname}/db/${userId}.json`);
+    console.log(`dar hal khandan data user ba id ${id}`);
+    const data = dataBuffer.toString('utf-8');
+    if (data.trim() === '') {
+      // File is empty, return false
+      console.log(`file ${id} khaali bud`);
+      return {};
+    }
+    const jsonData = JSON.parse(dataBuffer);
     return jsonData;
   } catch (err) {
     console.log(err);
@@ -521,19 +537,22 @@ async function readMessageIds() {
 
 async function sendPosts() {
   try {
-    const currentHour = new Date().getHours();
-    if (currentHour > 0) {
-      const messages = await readMessageIds();
-
-      while (true) {
+    let loop = true;
+    const messages = await readMessageIds();
+    while (loop) {
+      const currentHour = new Date().getHours();
+      if (currentHour < 22) {
         const userIDs = await findAll();
 
         let postsExist = false;
 
         for (const userId of userIDs) {
+          if (currentHour < 22) {
+            break;
+          }
           const userData = await getUserData(userId);
 
-          const postsToSend = userData.posts
+          const postsToSend = (userData.posts || [])
             .filter((post) => !post.displayed)
             .slice(0, 5);
 
@@ -569,15 +588,20 @@ async function sendPosts() {
           console.log('No posts to send. Waiting for a while...');
           await sleep(delayTimeOut * 1000);
         }
+      } else {
+        const currentDate = new Date().toLocaleDateString();
+        console.log('It is after 00:00 am. Stopping the scheduled job.');
+        loop = false;
+        dayJob.cancel();
+        await bot.telegram.sendMessage(
+          admin,
+          `فعالیت بات به پایان رسید شد \n \n تاریخ : ${currentDate} `
+        );
+        await bot.telegram.sendMessage(
+          dev,
+          `فعالیت بات به پایان رسید شد \n \n تاریخ : ${currentDate} `
+        );
       }
-    } else {
-      const currentDate = new Date().toLocaleDateString();
-      console.log('It is after 00:00 am. Stopping the scheduled job.');
-      dayJob.cancel();
-      await bot.telegram.sendMessage(
-        dev,
-        `فعالیت بات به پایان رسید شد \n \n تاریخ : ${currentDate} `
-      );
     }
   } catch (err) {
     console.log(err);
